@@ -4,6 +4,18 @@ All notable changes to `epy_reports` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-09-08
+
+### Fixed
+
+- **The installer script kept the previous release's number**, so no
+  installer was built for 0.7.0. `build.py` refuses on that mismatch,
+  but it runs only in a build: the release gate was green, the tag was
+  pushed, and the installer pipeline was the first thing to say the
+  number had been bumped in one file out of two. The check now runs in
+  the test suite the gate runs, together with one that the changelog
+  has a heading for the version being tagged.
+
 ## [0.7.0] — 2026-09-08
 
 ### Added
