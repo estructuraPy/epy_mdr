@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -135,6 +136,61 @@ def _purge_build_artifacts() -> None:
         shutil.rmtree(BUILD, ignore_errors=True)
 
 
+ISS = (
+    ROOT / "src" / APP_NAME / "_core" / "_packaging" / "windows"
+    / f"{APP_NAME}.iss"
+)
+
+
+def _package_version() -> str:
+    """Return the version the package reports."""
+    text = (ROOT / "src" / APP_NAME / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(r'(?m)^__version__\s*=\s*"([^"]+)"', text)
+    if match is None:
+        sys.exit(f"No __version__ in {APP_NAME}/__init__.py.")
+    return match.group(1)
+
+
+def _installer_version() -> str:
+    """Return the version the installer script declares."""
+    if not ISS.is_file():
+        sys.exit(f"No installer script at {ISS}.")
+    match = re.search(
+        r'(?m)^#define\s+AppVersion\s+"([^"]+)"',
+        ISS.read_text(encoding="utf-8-sig"),
+    )
+    if match is None:
+        sys.exit(f"No #define AppVersion in {ISS}.")
+    return match.group(1)
+
+
+def _verify_version() -> None:
+    """Fail the build when the package and the installer disagree.
+
+    This application installs on its own as well as inside ePy Studio,
+    so this installer is a deliverable in its own right and its version
+    is what a person reads in Add/Remove. Inno Setup cannot read Python,
+    so ``#define AppVersion`` is written by hand and drifts -- measured,
+    all three editors had drifted at once. An installer whose file name
+    and Add/Remove entry claim a version the executable does not report
+    is a support call nobody can answer, so the mismatch fails HERE,
+    where it costs one edit.
+
+    Raises:
+        SystemExit: Naming both numbers and which file to change.
+    """
+    package, installer = _package_version(), _installer_version()
+    if package != installer:
+        sys.exit(
+            f"Version mismatch: {APP_NAME}.__version__ is {package} but "
+            f"{ISS.name} declares AppVersion {installer}. Update the "
+            f"#define and rebuild."
+        )
+    print(f"Version verified: {package} in both the package and the .iss.")
+
+
 def main() -> int:
     """CLI entry point for the build script."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -153,6 +209,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    _verify_version()
     if not args.keep:
         _clean()
 
