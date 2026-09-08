@@ -27,7 +27,7 @@
 ;     checkbox below launches "ms-settings:defaultapps" as a convenience.
 
 #define AppName "epy_reports"
-#define AppVersion "0.6.0"
+#define AppVersion "0.7.0"
 #define AppPublisher "Ing. Angel Navarro-Mora M.Sc."
 #define AppURL "https://github.com/estructuraPy/epy_reports"
 #define AppId "{{D9B4E1C7-2A6F-4B83-9E5D-7C1A0F3B6E24}"
