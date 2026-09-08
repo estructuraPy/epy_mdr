@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from epy_export import ORGANIZATION
 from PySide6.QtCore import QSettings, QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -113,7 +114,11 @@ class DocsExportDialog(QDialog):
         self.setMinimumWidth(460)
 
         self._source_path = source_path
-        self._settings = QSettings("ANM Ingeniería", "epy_reports")
+        # The constant, not the literal. app.py already uses it, and
+        # two spellings of one organisation is how a dialog comes to
+        # read a different registry tree than the window that opened
+        # it -- silently, because both spellings work today.
+        self._settings = QSettings(ORGANIZATION, "epy_reports")
 
         from epy_reports.epy_suite_connect._adapters.docs_bridge import (  # noqa: PLC0415
             list_document_types,

@@ -4,6 +4,45 @@ All notable changes to `epy_reports` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **"Export via epy_docs" works in the installed application.** It was
+  greyed out in every shipped executable since the first release, for
+  two independent reasons, and both were invisible from a source
+  checkout because the engine IS importable there.
+
+  The first: availability was asked as "does epy_docs import HERE?".
+  PyInstaller closes `sys.path` to the bundle, so a package installed
+  in the user's own Python is invisible however the spec is written,
+  and the answer was permanently no. It now asks `epy_export`, which
+  answers about the MACHINE and renders through the interpreter ePy
+  Studio found when it must.
+
+  The second: the export dialog asked the ENGINE for its layouts and
+  document kinds IN ITS CONSTRUCTOR, so even with the first fixed the
+  window could not have been built. Both vocabularies now come from
+  the shared catalogue, which every application already carries.
+
+### Changed
+
+- The bridge no longer reaches the engine at all: `epy_export` owns the
+  catalogue, the availability route and the render, and this module is
+  the thin layer that speaks this application's vocabulary to it. The
+  document kind chosen in the dialog now travels with the render; it
+  used to stop at the dispatcher, which always passed the default.
+- One condition, one name: "epy_docs is not installed" was raised here
+  as its own class and by `epy_export` as another, and a caller cannot
+  know which of two unrelated types to catch. The message still says
+  it is a commercial add-on and still carries the contact, because
+  "install it, or choose another engine" is right for a caller and
+  useless for a reader who has to buy it.
+- The export dialog reads the organisation from the shared constant
+  instead of spelling it inline. Two spellings of one organisation is
+  how a dialog comes to read a different registry tree than the window
+  that opened it, silently, because both spellings work.
+
 ## [0.5.1] — 2026-09-05
 
 ### Fixed

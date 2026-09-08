@@ -2,11 +2,19 @@
 
 Independence contract
 ---------------------
-This is the **only** module in epy_reports that may reference ``epy_docs``.
-All imports of ``epy_docs`` happen lazily inside function bodies so the
-rest of the application continues to work when ``epy_docs`` is not
-installed.  No top-level ``import epy_docs`` is permitted here or
-anywhere else in the package.
+This is the **only** module in epy_reports that may reference
+``epy_docs``, and it no longer reaches it directly: ``epy_export`` owns
+the engine catalog, the availability route and the render, and this
+module is the thin layer that speaks epy_reports' vocabulary to it.
+
+That indirection is not ceremony. Deciding whether the engine is here
+by importing it HERE has a permanently wrong answer inside a frozen
+bundle -- PyInstaller closes ``sys.path`` to the bundle, so a package
+installed in the user's own Python is invisible however the spec is
+written -- and this menu entry was greyed out in every shipped
+executable from the first release until that moved. ``epy_export``
+answers about the MACHINE and renders in the interpreter ePy Studio
+found when it has to.
 
 Usage example::
 
@@ -16,7 +24,7 @@ Usage example::
     )
 
     if epy_docs_available():
-        result = render_document(
+        produced = render_document(
             source_path=Path("report.qmd"),
             layout="corporate",
             document_type="report",
@@ -28,84 +36,65 @@ Usage example::
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
-from typing import Any
 
+from epy_export import (
+    APPEARANCES,
+    DOCUMENT_TYPES,
+    EngineUnavailableError,
+    RenderOptions,
+    available,
+    render,
+)
 
-class BridgeUnavailableError(RuntimeError):
-    """Raised when epy_docs is required but not installed."""
+ENGINE_ID = "docs"
+"""The engine this bridge speaks for, as the shared catalog names it."""
+
+# One condition, one name. "epy_docs is not installed" was raised here
+# as its own class and by epy_export as another, and a caller cannot
+# know which of two unrelated types to catch: it catches one and the
+# other escapes into a dialog as an unhandled exception. The name is
+# kept because it is the word this package's callers already use.
+BridgeUnavailableError = EngineUnavailableError
 
 
 def epy_docs_available() -> bool:
-    """Return ``True`` when epy_docs can be imported.
+    """Return whether this machine can render through epy_docs.
+
+    Asks the shared route, which answers about the MACHINE rather than
+    about this process's import path: inside the frozen bundle the
+    engine can never be imported, and ePy Studio publishes the
+    interpreter that carries it.
 
     Returns:
-        ``True`` if ``epy_docs`` is findable on ``sys.path``,
-        ``False`` otherwise.  No actual import is performed.
+        Whether the engine can be reached at all. Nothing is imported
+        and no subprocess is started, so this stays cheap enough to
+        build a menu with.
     """
-    return importlib.util.find_spec("epy_docs") is not None
-
-
-def _load_epy_docs() -> Any:
-    """Import epy_docs, or refuse by name.
-
-    :func:`epy_docs_available` asks with ``find_spec``, which imports
-    nothing -- that is what keeps deciding whether to OFFER the feature
-    cheap. It is not a promise that the import will work: a package that
-    is present and BROKEN answers yes and then raises here.
-
-    Returns:
-        The imported module.
-
-    Raises:
-        BridgeUnavailableError: Naming the package and chaining the real
-            cause, so a broken install reads as a broken install rather
-            than as an unhandled ImportError in a dialog.
-    """
-    if not epy_docs_available():
-        raise BridgeUnavailableError(
-            "epy_docs is not installed. It is a commercial add-on by "
-            "ANM Ingenieria: ahnavarro@anmingenieria.com"
-        )
-    try:
-        import epy_docs  # noqa: PLC0415  (lazy import by design)  # pyright: ignore[reportMissingImports] - a commercial add-on, absent by design
-    except ImportError as exc:
-        raise BridgeUnavailableError(
-            f"epy_docs is installed but could not be imported ({exc}). "
-            f"That is a broken installation of it, not a missing one."
-        ) from exc
-    return epy_docs
+    return available(ENGINE_ID)
 
 
 def list_layouts() -> list[str]:
-    """Return the layout names available in epy_docs.
+    """Return the layout names this family publishes.
+
+    Read from the shared vocabulary rather than from the engine. A
+    dialog that asked the ENGINE could not be built at all inside the
+    bundle, where the engine cannot be imported -- which is the second
+    reason this export entry was unreachable.
 
     Returns:
-        Sorted list of layout name strings, e.g.
-        ``['academic', 'corporate', ...]``.
-
-    Raises:
-        BridgeUnavailableError: If epy_docs is not installed.
+        The nine layout names, in the order the family publishes them.
     """
-    epy_docs = _load_epy_docs()
-
-    return list(epy_docs.available_layouts())
+    return list(APPEARANCES)
 
 
 def list_document_types() -> list[str]:
-    """Return the document types available in epy_docs.
+    """Return the document kinds the generic writer can build.
 
     Returns:
-        Sorted list of document type strings, e.g.
-        ``['book', 'notebook', 'paper', 'report']``.
-
-    Raises:
-        BridgeUnavailableError: If epy_docs is not installed.
+        The kinds, in the order the family publishes them.
     """
-    epy_docs = _load_epy_docs()
-
-    return list(epy_docs.available_document_types())
+    return list(DOCUMENT_TYPES)
 
 
 def render_document(
@@ -116,51 +105,64 @@ def render_document(
     pdf: bool,
     html: bool,
     docx: bool = False,
-    keep_lists_together: bool = True,
-) -> dict:
-    """Render ``source_path`` through epy_docs and return the result.
-
-    Builds a ``DocumentWriter`` with the given options, adds the source
-    file as a Quarto chapter, and calls ``generate()``.
+) -> list[Path]:
+    """Render ``source_path`` through epy_docs and return what it made.
 
     Args:
         source_path: Absolute path to the ``.md`` or ``.qmd`` source.
         layout: Layout name as returned by :func:`list_layouts`.
-        document_type: Document type as returned by
+        document_type: Document kind as returned by
             :func:`list_document_types`.
-        output_dir: Directory where epy_docs will write the output
-            files.  Created by epy_docs if it does not exist.
+        output_dir: Directory for the rendered output; created when
+            absent.
         pdf: When ``True``, request PDF output.
         html: When ``True``, request HTML output.
         docx: When ``True``, request Word (.docx) output.
-        keep_lists_together: When ``True`` (default), PDF output keeps
-            bullet/numbered lists on one page (the whole list moves to
-            the next page instead of splitting). Forwarded to
-            ``DocumentWriter``; affects PDF only. DOCX output keeps
-            lists together unconditionally via the reference templates.
 
     Returns:
-        The ``dict`` returned by ``DocumentWriter.generate()``.
+        One path per format produced. The paths are checked to exist
+        before this returns: the engine reports success and writes
+        nothing when Quarto is missing, so its own answer is not
+        evidence.
 
     Raises:
-        BridgeUnavailableError: If epy_docs is not installed.
-    """
-    epy_docs = _load_epy_docs()
+        BridgeUnavailableError: When the engine cannot be reached.
+        RenderFailedError: When it ran and produced nothing sound.
+        ValueError: When no format was asked for, or the layout or the
+            document kind is not one the family publishes.
 
-    writer = epy_docs.DocumentWriter(
-        document_type,
-        layout_style=layout,
-        output_dir=str(output_dir),
-        keep_lists_together=keep_lists_together,
-    )
-    writer.add_quarto_file(
-        str(source_path),
-        convert_tables=False,
-        execute_code_blocks=False,
-    )
-    return writer.generate(
-        output_filename=source_path.stem,
-        pdf=pdf,
-        html=html,
-        docx=docx,
+    Note:
+        ``source_kind`` is fixed to ``"quarto"`` because that is the
+        entry point this bridge has always used. It is declared rather
+        than guessed from the suffix: the two entry points are different
+        methods on the writer, and a Quarto source fed to the Markdown
+        reader leaks its directives into the body as literal text.
+    """
+    if not epy_docs_available():
+        # Said here rather than left to the dispatcher. Its message is
+        # right for a caller ("install it, or choose another engine")
+        # and wrong for a reader: this engine is not something you
+        # install, it is something you buy, and the distinction between
+        # "not bought" and "broken install" is the difference between
+        # two completely different actions.
+        raise BridgeUnavailableError(
+            "ePy Docs is not available on this machine. It is a "
+            "commercial add-on by ANM Ingenieria: "
+            "ahnavarro@anmingenieria.com"
+        )
+    formats = [
+        name
+        for name, wanted in (("pdf", pdf), ("html", html), ("docx", docx))
+        if wanted
+    ]
+    return render(
+        source_path,
+        output_dir,
+        engine_id=ENGINE_ID,
+        formats=formats,
+        options=RenderOptions(
+            appearance=layout,
+            document_type=document_type,
+            source_kind="quarto",
+        ),
     )
