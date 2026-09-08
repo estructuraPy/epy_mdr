@@ -44,7 +44,7 @@ jobs:
         # cannot resolve the dependency and the job fails before a
         # single test runs.
         run: >-
-          pip install "epy_export[pdf,qt] @ git+https://github.com/estructuraPy/epy_export.git@v0.2.0"
+          pip install "epy_export[pdf,qt] @ git+https://github.com/estructuraPy/epy_export.git@v0.3.0"
       - name: Install package + dev deps
         run: pip install -e ".[dev,build]"
       - name: Install pyright
@@ -82,7 +82,7 @@ jobs:
         # cannot resolve the dependency and the job fails before a
         # single test runs.
         run: >-
-          pip install "epy_export[pdf,qt] @ git+https://github.com/estructuraPy/epy_export.git@v0.2.0"
+          pip install "epy_export[pdf,qt] @ git+https://github.com/estructuraPy/epy_export.git@v0.3.0"
       - name: Install package + dev deps
         run: pip install -e ".[dev]"
       - name: Test
