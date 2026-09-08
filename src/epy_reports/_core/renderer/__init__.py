@@ -366,6 +366,11 @@ _INDEX_TITLES: dict[str, dict[str, str]] = {
     },
 }
 
+# Title of the divider section the reader's annex PDFs are joined to.
+# Document language, not interface language: a document that declares
+# ``lang: es`` says "Anexos" whatever menu language the export ran from.
+_ANNEX_TITLES: dict[str, str] = {"en": "Annexes", "es": "Anexos"}
+
 # Fence-start / end detector (``` or ~~~, any leading spaces).
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
@@ -885,6 +890,32 @@ def _index_lang_key(lang: str) -> str:
     """Normalize a language tag to a supported index key."""
     key = lang[:2].lower() if lang else "en"
     return key if key in _INDEX_TITLES else "en"
+
+
+def append_annex_section(source: str, lang: str = "en") -> str:
+    """Append the divider section the reader's annex PDFs are joined to.
+
+    The section is written into the Markdown, not drawn onto the PDF
+    afterwards, and that is the whole point: written here it inherits
+    the theme, takes a heading id, enters the table of contents with
+    its real page and is numbered like every other section. A page
+    drawn on afterwards would be none of those things.
+
+    It carries a page break, so the divider opens a sheet of its own and
+    the joined PDFs follow it instead of sharing a page with the end of
+    the body.
+
+    Args:
+        source: The document's Markdown source.
+        lang: The document's language tag; anything unsupported reads
+            as English.
+
+    Returns:
+        ``source`` with the section appended.
+    """
+    key = lang[:2].lower() if lang else "en"
+    title = _ANNEX_TITLES.get(key, _ANNEX_TITLES["en"])
+    return source.rstrip() + f"\n\n[[pagebreak]]\n\n# {title}\n"
 
 
 def build_toc_html(

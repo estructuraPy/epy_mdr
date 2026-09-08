@@ -69,6 +69,9 @@ page-numbers: true  # stamp "Page X of Y" on every content page
 cover: true         # render a dedicated cover page
 logo: logo.png      # cover logo (relative to the document)
 watermark: mark.png # faint grayscale image drawn behind every page
+cover-pdf: cover.pdf     # your own cover, joined in front, unnumbered
+annexes: ["a.pdf", "b.pdf"]  # joined at the back, numbered, under a
+                             # generated "Annexes" section
 header: ["Acme", "Report", "2026", "", "Rev. B", "p."]  # up to 6 cells
 bibliography: refs.bib   # enables @citations
 csl: ieee           # citation style: ieee | apa | chicago | ...

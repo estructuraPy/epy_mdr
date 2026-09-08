@@ -37,6 +37,17 @@ def render_report_pdf(
     the final PDF. Footer/header numbering restarts per ``[[section-roman]]`` /
     ``[[section-arabic]]`` boundary. When the Qt build emits no named
     destinations the first pass is kept as-is (single-pass fallback).
+
+    A ``cover-pdf`` declared in the front matter is joined at the front
+    after the stamping, so it carries no page number; ``annexes`` are
+    joined at the back before it, so they are numbered in continuity
+    with the body, under a generated section that enters the index.
+
+    Raises:
+        FileNotFoundError: When a declared cover or annex is not on
+            disk. Raised before rendering starts.
+        ValueError: When either key is present and declares nothing.
+        RuntimeError: When the Paged.js export does not complete.
     """
     import shutil  # noqa: PLC0415
 
@@ -57,6 +68,7 @@ def render_report_pdf(
     from PySide6.QtWidgets import QApplication  # noqa: PLC0415
 
     from epy_reports._core.renderer import (  # noqa: PLC0415, E501
+        append_annex_section,
         inject_page_numbers,
         normalize_page_size,
         render_markdown,
@@ -64,6 +76,7 @@ def render_report_pdf(
     from epy_reports._core.snippets import (  # noqa: PLC0415
         parse_front_matter,
         parse_header_cells,
+        resolve_pdf_attachments,
     )
     from epy_reports._core.template import is_truthy  # noqa: PLC0415
 
@@ -71,6 +84,12 @@ def render_report_pdf(
     page_size = normalize_page_size(meta.get("page-size"))
     lang = meta.get("lang", "en")
     has_cover = is_truthy(meta.get("cover"))
+
+    # Read before rendering: a mistyped path costs a message here, and
+    # two Paged.js passes if it is discovered at the joining step.
+    cover_pdf, annex_pdfs = resolve_pdf_attachments(meta, base_dir)
+    if annex_pdfs:
+        source = append_annex_section(source, lang)
 
     app = QApplication.instance() or QApplication([])
     export_html = render_markdown(
@@ -182,6 +201,11 @@ def render_report_pdf(
     work = Path(tempfile.mkdtemp(prefix="epy_reports_pdf_")) / "out.pdf"
     work.write_bytes(out_path.read_bytes())
     try:
+        # BEFORE the stamping, which is what numbers these pages: the
+        # annexes are part of the document, so the footer that follows
+        # counts them in continuity with the body.
+        if annex_pdfs:
+            _pdf_footer.append_pdf(work, annex_pdfs)
         if page_bg:
             _pdf_footer.add_page_background(work, page_bg)
         watermark = (meta.get("watermark") or "").strip()
@@ -213,6 +237,12 @@ def render_report_pdf(
             creator="epy_reports",
             producer="epy_reports — ANM Ingeniería",
         )
+        # AFTER the stamping, which is what keeps this page out of the
+        # numbering: the reader's cover template is front matter, and
+        # the body was already renumbered from 1, so the pages the
+        # index declares do not move.
+        if cover_pdf is not None:
+            _pdf_footer.prepend_pdf(work, cover_pdf)
         out_path.write_bytes(work.read_bytes())
     finally:
         shutil.rmtree(work.parent, ignore_errors=True)

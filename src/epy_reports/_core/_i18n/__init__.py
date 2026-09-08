@@ -155,6 +155,8 @@ _ES: dict[str, str] = {
     "Saved PDF: {path}": "PDF guardado: {path}",
     "Failed to write PDF:\n{path}":
         "Error al escribir el PDF:\n{path}",
+    "PDF pages could not be joined:\n{reason}":
+        "No se pudieron unir las páginas PDF:\n{reason}",
     # --- View menu ---
     "Page view": "Vista de página",
     "Page view: on": "Vista de página: activada",
@@ -267,6 +269,13 @@ _ES: dict[str, str] = {
     'Stamp "Page X of Y"': 'Estampar "Página X de Y"',
     "Watermark:": "Marca de agua:",
     "Choose watermark image": "Elegir imagen de marca de agua",
+    # The reader's own PDF pages: a cover template joined at the front
+    # and annexes joined at the back.
+    "Cover PDF:": "Portada PDF:",
+    "Choose cover PDF": "Elegir portada PDF",
+    "Annexes": "Anexos",
+    "PDF files:": "Archivos PDF:",
+    "Choose annex PDF files": "Elegir archivos PDF de anexos",
     # --- About dialog ---
     "Quarto / Markdown editor with live preview":
         "Editor de Quarto / Markdown con vista previa en vivo",

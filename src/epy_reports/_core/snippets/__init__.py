@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 # One parser for the family. The copy that used to live here was
 # byte-for-byte the shared one, so a fix to either reached only
@@ -23,6 +24,7 @@ from dataclasses import dataclass
 from epy_export import (
     parse_front_matter as parse_front_matter,  # re-export
 )
+from epy_export import require_pdfs
 
 # Captures Quarto cross-ref labels: {#fig-foo}, {#tbl-bar width=80%}, etc.
 _LABEL_RE = re.compile(
@@ -143,6 +145,100 @@ def parse_header_cells(value: object) -> list[str]:
         if isinstance(items, list):
             return [str(x) for x in items]
     return [text]
+
+
+def parse_path_list(value: object) -> list[str]:
+    """Normalize a front-matter value into a list of declared paths.
+
+    Accepts a real list, a YAML flow sequence with or without quotes
+    (``[one.pdf, "two.pdf"]``) and a plain comma-separated list. A
+    single path with no comma is a one-item list.
+
+    Splitting on commas means a path that contains one is split into
+    pieces. Nothing is guessed about that: the pieces do not exist on
+    disk, and the caller names them.
+    """
+    if isinstance(value, list):
+        return [str(x).strip() for x in value if str(x).strip()]
+    text = str(value or "").strip()
+    if not text:
+        return []
+    if text.startswith("[") and text.endswith("]"):
+        try:
+            items = json.loads(text)
+        except (ValueError, TypeError):
+            items = None
+        if isinstance(items, list):
+            return [str(x).strip() for x in items if str(x).strip()]
+        # A bare flow sequence -- [one.pdf, two.pdf] -- is not JSON,
+        # and it is what somebody writing YAML by hand types.
+        text = text[1:-1]
+    return [
+        part.strip().strip("\"'")
+        for part in text.split(",")
+        if part.strip().strip("\"'")
+    ]
+
+
+def resolve_pdf_attachments(
+    meta: dict[str, str], base_dir: Path | None
+) -> tuple[Path | None, list[Path]]:
+    """Resolve the reader's own PDF pages declared in the front matter.
+
+    Two keys, resolved relative to the document exactly as ``watermark``
+    is: ``cover-pdf`` names one PDF template that becomes the opening
+    page, and ``annexes`` names the PDFs appended at the back.
+
+    Where each one is joined is what decides the numbering, and that is
+    the export path's business, not this function's. This one only says
+    which files were asked for -- and refuses now, before a minute of
+    rendering, if any of them is not there.
+
+    Args:
+        meta: Parsed front matter.
+        base_dir: The document's directory; relative paths resolve
+            against it.
+
+    Returns:
+        The cover, or ``None``, and the annexes in the declared order.
+
+    Raises:
+        ValueError: When ``annexes`` is present and declares nothing,
+            which is what a YAML block sequence looks like to a reader
+            that only sees a key's own line. Reading that as "no
+            annexes" would export a document missing pages its author
+            asked for, and it would be discovered by whoever received
+            it. An empty list is written ``[]``, which is what the
+            document properties dialog writes when the field is
+            cleared, and it is not this mistake.
+
+            ``cover-pdf`` is not held to the same rule: it takes one
+            path, so an empty value is not a dropped block sequence --
+            it is how "no cover" is spelled.
+        FileNotFoundError: Naming every declared file that is missing.
+    """
+
+    def _resolved(value: str) -> Path:
+        candidate = Path(value)
+        if not candidate.is_absolute() and base_dir is not None:
+            candidate = base_dir / candidate
+        return candidate
+
+    if "annexes" in meta and not str(meta.get("annexes") or "").strip():
+        raise ValueError(
+            "Front matter 'annexes:' declares nothing. Only a key's own "
+            "line is read, so a YAML block sequence (one '- path' per "
+            "line) never arrives. Write it on the key's line: annexes: "
+            "[one.pdf, two.pdf] -- or annexes: [] for none."
+        )
+
+    cover_value = str(meta.get("cover-pdf") or "").strip()
+    cover = _resolved(cover_value) if cover_value else None
+    annexes = [
+        _resolved(item) for item in parse_path_list(meta.get("annexes"))
+    ]
+    require_pdfs([*annexes, *([cover] if cover is not None else [])])
+    return cover, annexes
 
 
 def _format_yaml_value(value: str) -> str:

@@ -4,6 +4,33 @@ All notable changes to `epy_reports` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-09-08
+
+### Added
+
+- **The reader's own PDF pages, front and back.** Two front-matter
+  keys, resolved relative to the document exactly as `watermark` is,
+  and both editable from *Document ▸ Document properties…*:
+
+  - `cover-pdf:` — a cover the reader supplies as a finished PDF. It
+    becomes the opening page and carries **no page number**.
+  - `annexes:` — PDFs joined at the back. They **are** numbered, in
+    continuity with the body, under a generated `# Annexes` /
+    `# Anexos` section that takes the document's theme, enters the
+    table of contents and is numbered like any other section.
+
+  Nothing about numbering changed to make this work: the order of the
+  export pipeline decides it. The annexes are joined **before** the
+  stamping, so the footer counts them; the cover is joined **after**
+  it, so it is not stamped and the pages the index declares do not
+  move. Pages of another size are fitted to the document's sheet
+  without being stretched.
+
+  A declared file that is not on disk is **named, and named before
+  anything is rendered** — all of the missing ones in one message, so
+  a reader who mistyped two paths is not told about them one export at
+  a time.
+
 ## [0.6.0] — 2026-09-08
 
 ### Fixed

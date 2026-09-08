@@ -71,6 +71,9 @@ page-numbers: true  # estampa "Página X de Y" en cada página de contenido
 cover: true         # genera una portada dedicada
 logo: logo.png      # logo de la portada (relativo al documento)
 watermark: mark.png # imagen gris tenue detrás de cada página
+cover-pdf: portada.pdf   # portada propia, se une al frente, sin numerar
+annexes: ["a.pdf", "b.pdf"]  # se unen al final, numerados, bajo una
+                             # sección "Anexos" generada
 header: ["Acme", "Informe", "2026", "", "Rev. B", "p."]  # hasta 6 celdas
 bibliography: refs.bib   # habilita las @citas
 csl: ieee           # estilo de cita: ieee | apa | chicago | ...

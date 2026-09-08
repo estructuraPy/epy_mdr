@@ -130,3 +130,50 @@ def test_updates_header_serialized_as_flow_sequence(qapp):
     assert raw is True
     cells = json.loads(value)
     assert cells == ["Left", "", "Right"]
+
+
+# ---------------------------------------------------------------------------
+# The reader's own PDF pages.
+# ---------------------------------------------------------------------------
+
+
+def test_annexes_prefill_as_a_readable_list(qapp):
+    """Whatever form the file holds is shown as one readable line."""
+    dlg = DocumentPropertiesDialog(
+        meta={"annexes": '["anexos/uno.pdf", "anexos/dos.pdf"]'}
+    )
+    assert dlg.annexes_edit.text() == "anexos/uno.pdf, anexos/dos.pdf"
+
+
+def test_annexes_are_written_as_a_flow_sequence(qapp):
+    """Quoted, not comma-joined: a path is allowed to contain a comma."""
+    dlg = DocumentPropertiesDialog()
+    dlg.annexes_edit.setText("uno.pdf, dos.pdf")
+    value, raw = next(
+        (v, r) for f, v, r in dlg.updates() if f == "annexes"
+    )
+    assert raw is True
+    assert json.loads(value) == ["uno.pdf", "dos.pdf"]
+
+
+def test_clearing_the_annexes_writes_an_empty_list_not_an_empty_value(
+    qapp,
+):
+    """The one spelling the export does not read as a mistake.
+
+    An empty ``annexes:`` is what a dropped YAML block sequence looks
+    like, and the export refuses on it. So a reader who empties this
+    field must get ``[]`` written, or every later export would refuse
+    with a message about a list they no longer have.
+    """
+    dlg = DocumentPropertiesDialog(meta={"annexes": '["uno.pdf"]'})
+    dlg.annexes_edit.setText("")
+    out = dict((f, v) for f, v, _raw in dlg.updates())
+    assert out["annexes"] == "[]"
+
+
+def test_the_cover_pdf_is_a_plain_path(qapp):
+    dlg = DocumentPropertiesDialog()
+    dlg.cover_pdf_edit.setText("plantilla/portada.pdf")
+    out = dict((f, v) for f, v, _raw in dlg.updates())
+    assert out["cover-pdf"] == "plantilla/portada.pdf"

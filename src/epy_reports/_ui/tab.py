@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 from epy_reports._core import _i18n as i18n
 from epy_reports._core import snippets
 from epy_reports._core.renderer import (
+    append_annex_section,
     inject_page_numbers,
     normalize_page_size,
     render_markdown,
@@ -391,6 +392,14 @@ class MarkdownTab(QWidget):
             on_done: Optional callback ``(target, ok)`` invoked when the
                 export finishes (success or failure). ``target`` is the
                 final destination path so the caller can report it.
+
+        Raises:
+            FileNotFoundError: When ``cover-pdf`` or ``annexes`` names a
+                file that is not on disk. Raised before anything is
+                rendered, and before ``on_done`` exists to hear it, so
+                the caller reports the reason rather than the bare
+                failure the callback carries.
+            ValueError: When either key is present and declares nothing.
         """
         text = self.editor.toPlainText()
         # Stop the live-preview debounce so a pending re-render cannot fire
@@ -432,6 +441,17 @@ class MarkdownTab(QWidget):
                 candidate = base_dir / watermark
             if candidate.is_file():
                 watermark_path = candidate
+
+        # The reader's own PDF pages: a cover template that opens the
+        # document and annexes that close it. Read before rendering, so
+        # a mistyped path is reported instead of costing two Paged.js
+        # passes and then failing at the joining step.
+        cover_pdf, annex_pdfs = snippets.resolve_pdf_attachments(
+            meta, base_dir
+        )
+        if annex_pdfs:
+            text = append_annex_section(text, lang)
+
         export_html = render_markdown(
             text,
             base_dir=base_dir,
@@ -469,6 +489,12 @@ class MarkdownTab(QWidget):
                     # from the window raised ModuleNotFoundError here.
                     _pdf_footer = epy_export
 
+                    # BEFORE the stamping, which is what numbers these
+                    # pages: the annexes are part of the document, so
+                    # the footer counts them in continuity with the
+                    # body.
+                    if annex_pdfs:
+                        _pdf_footer.append_pdf(tmp_pdf, annex_pdfs)
                     if self._page_bg:
                         _pdf_footer.add_page_background(
                             tmp_pdf, self._page_bg,
@@ -511,6 +537,13 @@ class MarkdownTab(QWidget):
                         creator="epy_reports",
                         producer="epy_reports — ANM Ingeniería",
                     )
+                    # AFTER the stamping, which is what keeps this page
+                    # out of the numbering: the reader's cover template
+                    # is front matter, and the body was already
+                    # renumbered from 1, so the pages the index
+                    # declares do not move.
+                    if cover_pdf is not None:
+                        _pdf_footer.prepend_pdf(tmp_pdf, cover_pdf)
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(tmp_pdf), str(target))
             except (OSError, RuntimeError):

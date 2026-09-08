@@ -1,10 +1,11 @@
 """Modal dialog to edit a document's front matter from a form.
 
 Gathers the publishing front-matter keys — title/subtitle/author/date,
-the cover page, the running header (a 2x3 grid of cells), the footer,
-page numbers and page size — and returns them as a list of
-``(field, value, raw)`` updates the caller writes into the YAML front
-matter with :func:`epy_reports._core.snippets.set_metadata_field`.
+the cover page, the reader's own cover PDF and annex PDFs, the running
+header (a 2x3 grid of cells), the footer, page numbers and page size —
+and returns them as a list of ``(field, value, raw)`` updates the
+caller writes into the YAML front matter with
+:func:`epy_reports._core.snippets.set_metadata_field`.
 """
 
 from __future__ import annotations
@@ -112,6 +113,31 @@ class DocumentPropertiesDialog(QDialog):
         wm_row.addWidget(wm_btn)
         cover_v.addLayout(wm_row)
 
+        # A cover the reader supplies as a finished PDF, joined at the
+        # very end of the export so it carries no page number.
+        self.cover_pdf_edit = QLineEdit(self._orig.get("cover-pdf", ""))
+        cover_pdf_btn = QPushButton("Browse…")
+        cover_pdf_btn.clicked.connect(self._pick_cover_pdf)
+        cover_pdf_row = QHBoxLayout()
+        cover_pdf_row.addWidget(QLabel(i18n.tr("Cover PDF:")))
+        cover_pdf_row.addWidget(self.cover_pdf_edit)
+        cover_pdf_row.addWidget(cover_pdf_btn)
+        cover_v.addLayout(cover_pdf_row)
+
+        # --- Annexes ------------------------------------------------------
+        # PDFs joined at the back, before the stamping, so they are
+        # numbered in continuity with the body under a generated section.
+        self.annexes_edit = QLineEdit(
+            ", ".join(snippets.parse_path_list(self._orig.get("annexes", "")))
+        )
+        annexes_btn = QPushButton("Browse…")
+        annexes_btn.clicked.connect(self._pick_annexes)
+        annexes_box = QGroupBox("Annexes")
+        annexes_row = QHBoxLayout(annexes_box)
+        annexes_row.addWidget(QLabel(i18n.tr("PDF files:")))
+        annexes_row.addWidget(self.annexes_edit)
+        annexes_row.addWidget(annexes_btn)
+
         # --- Running header (2 rows x 3 columns) --------------------------
         cells = snippets.parse_header_cells(self._orig.get("header", ""))[:6]
         cells += [""] * (6 - len(cells))
@@ -150,6 +176,7 @@ class DocumentPropertiesDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(title_box)
         layout.addWidget(cover_box)
+        layout.addWidget(annexes_box)
         layout.addWidget(header_box)
         layout.addWidget(footer_box)
         layout.addWidget(buttons)
@@ -173,6 +200,28 @@ class DocumentPropertiesDialog(QDialog):
         if path:
             self.watermark_edit.setText(path)
 
+    def _pick_cover_pdf(self) -> None:
+        """Open a file picker for the reader's own cover template."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, i18n.tr("Choose cover PDF"), "", "PDF (*.pdf)",
+        )
+        if path:
+            self.cover_pdf_edit.setText(path)
+
+    def _pick_annexes(self) -> None:
+        """Open a multi-file picker for the annex PDFs.
+
+        The chosen files REPLACE what the field holds rather than being
+        added to it: the order they are joined in is the order shown,
+        and appending would make a second visit to the picker produce
+        an order nobody chose.
+        """
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, i18n.tr("Choose annex PDF files"), "", "PDF (*.pdf)",
+        )
+        if paths:
+            self.annexes_edit.setText(", ".join(paths))
+
     def updates(self) -> list[tuple[str, str, bool]]:
         """Return the front-matter updates as ``(field, value, raw)``.
 
@@ -194,6 +243,7 @@ class DocumentPropertiesDialog(QDialog):
         add_text("margin", self.margin_edit.text())
         add_text("logo", self.logo_edit.text())
         add_text("watermark", self.watermark_edit.text())
+        add_text("cover-pdf", self.cover_pdf_edit.text())
         add_text("footer", self.footer_edit.text())
 
         def yn(checked: bool) -> str:
@@ -213,5 +263,18 @@ class DocumentPropertiesDialog(QDialog):
             out.append(("header", json.dumps(cells, ensure_ascii=False), True))
         elif "header" in self._orig:
             out.append(("header", "[]", True))
+
+        # A flow sequence, not a comma-separated string: a path may
+        # contain a comma, and quoting each one keeps it whole. Cleared,
+        # it is written "[]" rather than left empty -- an empty
+        # ``annexes:`` is how a dropped YAML block sequence looks, and
+        # the export refuses on it.
+        annexes = snippets.parse_path_list(self.annexes_edit.text())
+        if annexes:
+            out.append(
+                ("annexes", json.dumps(annexes, ensure_ascii=False), True)
+            )
+        elif "annexes" in self._orig:
+            out.append(("annexes", "[]", True))
 
         return out

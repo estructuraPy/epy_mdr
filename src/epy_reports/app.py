@@ -1831,7 +1831,21 @@ class MarkdownWindow(QMainWindow):
             if target.suffix == "":
                 target = target.with_suffix(".pdf")
             self.statusBar().showMessage(i18n.tr("Exporting PDF..."), 0)
-            tab.export_pdf(target, self._on_pdf_done)
+            try:
+                tab.export_pdf(target, self._on_pdf_done)
+            except (FileNotFoundError, ValueError) as exc:
+                # A cover or annex the document declares and the disk
+                # does not have. The generic "failed to write" below
+                # would leave the reader guessing which of their own
+                # paths is wrong, so the reason is shown verbatim.
+                self.statusBar().clearMessage()
+                QMessageBox.warning(
+                    self,
+                    APP_NAME,
+                    i18n.tr("PDF pages could not be joined:\n{reason}")
+                    .format(reason=exc),
+                )
+                return
             started = True
         finally:
             if not started:
