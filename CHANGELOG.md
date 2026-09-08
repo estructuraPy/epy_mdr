@@ -38,10 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it is a commercial add-on and still carries the contact, because
   "install it, or choose another engine" is right for a caller and
   useless for a reader who has to buy it.
-- The export dialog reads the organisation from the shared constant
-  instead of spelling it inline. Two spellings of one organisation is
-  how a dialog comes to read a different registry tree than the window
-  that opened it, silently, because both spellings work.
+- The export dialog is now the family's, in `epy_export._ui`. It is
+  the same window in all three editors, and only the registry scope
+  and the translators differ, so this module supplies those and
+  nothing else. Both names it publishes are unchanged.
+- The organisation is no longer spelled inline anywhere in that
+  chain. Two spellings of one organisation is how a dialog comes to
+  read a different registry tree than the window that opened it,
+  silently, because both spellings work.
 
 ## [0.5.1] — 2026-09-05
 

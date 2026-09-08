@@ -29,16 +29,16 @@ def qapp():
 
 
 @pytest.fixture
-def stub_bridge(monkeypatch):
-    """Stub the docs_bridge layout/doctype listings."""
-    import epy_reports.epy_suite_connect._adapters.docs_bridge as bridge
+def stub_bridge():
+    """Kept as a no-op so the tests below read as they always did.
 
-    monkeypatch.setattr(
-        bridge, "list_layouts", lambda: ["corporate", "ieee"]
-    )
-    monkeypatch.setattr(
-        bridge, "list_document_types", lambda: ["report", "article"]
-    )
+    The dialog used to ask the BRIDGE for its layouts and document
+    kinds, and this fixture answered for it. It asks the family's
+    shared vocabulary now, which is what lets the window be built at
+    all inside a frozen bundle -- so there is nothing left to stub, and
+    a fixture that pretended otherwise would be measuring itself.
+    """
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -47,14 +47,20 @@ def stub_bridge(monkeypatch):
 
 
 def test_dialog_populates_combos(qapp, stub_bridge):
-    """Layout and document-type combos list the bridge values."""
+    """Both combos list the vocabulary the family publishes."""
+    from epy_export import APPEARANCES, DOCUMENT_TYPES
+
     dlg = DocsExportDialog(Path("doc.md"))
     layouts = [
         dlg._combo_layout.itemText(i)
         for i in range(dlg._combo_layout.count())
     ]
-    assert "corporate" in layouts
-    assert "ieee" in layouts
+    kinds = [
+        dlg._combo_doctype.itemText(i)
+        for i in range(dlg._combo_doctype.count())
+    ]
+    assert layouts == list(APPEARANCES)
+    assert kinds == list(DOCUMENT_TYPES)
 
 
 def test_default_output_dir_is_source_results(qapp, stub_bridge, tmp_path):
@@ -76,11 +82,11 @@ def test_format_checkbox_defaults(qapp, stub_bridge):
 def test_properties_reflect_widget_state(qapp, stub_bridge):
     """The public properties echo the widget values."""
     dlg = DocsExportDialog(Path("doc.md"))
-    dlg._combo_layout.setCurrentText("ieee")
-    dlg._combo_doctype.setCurrentText("article")
+    dlg._combo_layout.setCurrentText("academic")
+    dlg._combo_doctype.setCurrentText("paper")
     dlg._edit_outdir.setText(str(Path("out").resolve()))
-    assert dlg.layout_name == "ieee"
-    assert dlg.document_type == "article"
+    assert dlg.layout_name == "academic"
+    assert dlg.document_type == "paper"
     assert dlg.output_dir == Path("out").resolve()
 
 
@@ -199,14 +205,18 @@ def test_the_dialog_offers_the_family_vocabulary(
 
 
 def test_the_organisation_is_not_spelt_inline():
-    """One constant, imported.
+    """One constant, in one place, for the whole family.
 
     Two spellings of one organisation is how a dialog comes to read a
     different registry tree than the window that opened it -- silently,
-    because both spellings work today.
+    because both spellings work today. The scope now lives in the
+    shared window, so neither module may carry the literal.
     """
     import inspect
 
-    source = inspect.getsource(ded)
-    assert 'QSettings("ANM' not in source
-    assert "ORGANIZATION" in source
+    from epy_export._ui import docs_export_dialog as shared
+
+    for module in (ded, shared):
+        source = inspect.getsource(module)
+        assert "ANM Ingenier" not in source, module.__name__
+    assert "ORGANIZATION" in inspect.getsource(shared)
