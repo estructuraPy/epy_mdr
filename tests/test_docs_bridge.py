@@ -158,6 +158,11 @@ def _rendered(
 ) -> _Recorder:
     recorder = _Recorder()
     monkeypatch.setattr(docs_bridge, "render", recorder)
+    # And the guard in front of it. On a machine WITHOUT ePy Docs --
+    # every public runner -- the refusal fires before the recorder is
+    # ever reached. This machine has the engine, so leaving it out
+    # passed here and failed there.
+    monkeypatch.setattr(docs_bridge, "available", lambda engine_id: True)
     source = tmp_path / "informe.qmd"
     source.write_text("# T\n", encoding="utf-8")
     docs_bridge.render_document(
@@ -225,6 +230,7 @@ def test_a_source_named_md_is_still_read_as_quarto(
     # change the reader for exactly this file and nothing would say so.
     recorder = _Recorder()
     monkeypatch.setattr(docs_bridge, "render", recorder)
+    monkeypatch.setattr(docs_bridge, "available", lambda engine_id: True)
     source = tmp_path / "informe.md"
     source.write_text("# T\n", encoding="utf-8")
     docs_bridge.render_document(
